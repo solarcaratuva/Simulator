@@ -12,8 +12,6 @@ rho = 1.192 # kg/m^3, air density in kentucky
 tire_pressure = 5  # bar
 mu = electrical_efficiency
 
-#hello
-
 # dummy solar GHI Curve
 # assuming the GHI curve is a parabola w/ 0 W/m^2 at 6:30 AM, peaks at 1 PM with 1200 W/m^2, and 0 W/m^2 at 6:30 PM
 def generate_ghi_curve():
@@ -50,9 +48,9 @@ def calculate_solar_charge(ghi):
 def simulate_race():
     time_minutes, ghi_data = generate_ghi_curve()
 
-    # assuming that race is 10 AM to 4 PM
+    # assuming that race is 10 AM to 6 PM
     start_idx = int((10 - 6.5) * 60)   # 10:00 AM
-    end_idx = int((16 - 6.5) * 60)     # 4:00 PM
+    end_idx = int((18 - 6.5) * 60)     # 6:00 PM
     ghi_race = ghi_data[start_idx:end_idx + 1]
     time_race = time_minutes[start_idx:end_idx + 1]
 
