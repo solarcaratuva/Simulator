@@ -1,4 +1,6 @@
 import numpy as np
+import matplotlib.pyplot as plt
+
 
 # constants
 g = 9.80665 # m/s^2, acceleration due to gravity
@@ -20,11 +22,18 @@ def generate_ghi_curve():
     t_peak = 13 * 60      # 1:00 PM
     peak_val = 1200       # W/m^2
 
+    # generative Cloud Sky Irradience Curve
     time_minutes = np.arange(start_day, end_day + 1)
     a = peak_val / ((t_peak - start_day) ** 2)
-    ghi = np.maximum(0, -a * (time_minutes - t_peak) ** 2 + peak_val)
-    return time_minutes, ghi
+    ghi_base = np.maximum(0, -a * (time_minutes - t_peak) ** 2 + peak_val)
+    
+    # add random, smoothed noise to simulate clouds
+    random_factor = np.clip(np.random.normal(1.0, 0.08, len(ghi_base)), 0.6, 1.3)
+    smooth_noise = np.convolve(random_factor, np.ones(15)/15, mode='same')
+    ghi_noisy = ghi_base * smooth_noise
 
+    return time_minutes, ghi_noisy
+    
 # crr, Fd, Fr, power drained (E out), solar charge (E in)
 def get_crr(v):
     v_kmh = v * 3.6  # convert to km/h
@@ -82,7 +91,6 @@ def simulate_race():
             elif bdr > 0.08:
                 v *= 0.95
                 
-
         else:
             v *= 0.85  # conserve energy if SoC is low
 
@@ -102,11 +110,27 @@ def simulate_race():
         dist_list.append(dist_step)
         total_dist_list.append(total_distance)
 
-    return soc_list, bdr_list, speed_list, ghi_list, dist_list, total_dist_list
+    return soc_list, bdr_list, speed_list, ghi_list, dist_list, total_dist_list, time_race
 
 # Run simulation
-soc, bdr, speed, ghi_list, dist_list, total_dist_list = simulate_race()
+soc, bdr, speed, ghi_list, dist_list, total_dist_list, time_race = simulate_race()
 
+print("\n SIM RESULTS: ")
 for i in range(len(soc)):
-    print(f"t={i*10} min | SoC={soc[i]*100:.2f}% | BDR={bdr[i]:.3f} | Speed={speed[i]:.2f} m/s | GHI={ghi_list[i]:.1f} W/m² | "
+    print(f"t={i*10} min | SoC={soc[i]*100:.2f}% | BDR={bdr[i]:.3f} | "
+          f"Speed={speed[i]:.2f} m/s | GHI={ghi_list[i]:.1f} W/m² | "
           f"Step Dist={dist_list[i]:.1f} m | Total Dist={total_dist_list[i]:.1f} m")
+
+# plot GHI curve 
+plt.figure(figsize=(10, 5))
+# matching time points 
+t_plot = np.arange(0, len(ghi_list) * 10, 10) / 60 + 10  # hours since 10 AM
+
+plt.plot(t_plot, ghi_list, color="orange")
+plt.xlabel("Time (hours)")
+plt.ylabel("GHI (W/m²)")
+plt.title("Randomized Solar Irradiance (GHI) During Race Day")
+plt.grid(True)
+
+plt.savefig("ghi_plot.png")  # saves plot as PNG
+plt.close()  
