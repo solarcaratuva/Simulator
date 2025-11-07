@@ -12,6 +12,7 @@ rho = 1.192 # kg/m^3, air density in kentucky
 tire_pressure = 5  # bar
 mu = electrical_efficiency
 
+#hello
 
 # dummy solar GHI Curve
 # assuming the GHI curve is a parabola w/ 0 W/m^2 at 6:30 AM, peaks at 1 PM with 1200 W/m^2, and 0 W/m^2 at 6:30 PM
