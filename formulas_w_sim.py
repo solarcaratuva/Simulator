@@ -54,7 +54,15 @@ def calculate_solar_charge(ghi):
     return solar_panel_area * ghi * solar_panel_efficiency
 
 # race simulator
-def simulate_race():
+def simulate_race(target_soc=0.10, aggressiveness=1.0, start_soc=1.0):
+    """
+    Simulate a race with optimized speed control to hit target SoC at the end.
+    
+    Parameters:
+    - target_soc: Target state of charge at end of race (default 0.10 = 10%)
+    - aggressiveness: Multiplier for speed adjustments (default 1.0)
+                     Higher values = more aggressive speed changes
+    """
     time_minutes, ghi_data = generate_ghi_curve()
 
     # assuming that race is 10 AM to 6 PM
@@ -63,13 +71,14 @@ def simulate_race():
     ghi_race = ghi_data[start_idx:end_idx + 1]
     time_race = time_minutes[start_idx:end_idx + 1]
 
-    soc = 1.0 # 100% capacity charge at start
+    soc = start_soc # starting SoC
     v = 13.4  # m/s (30 mph), starting speed
     soc_list, bdr_list, speed_list, ghi_list, dist_list, total_dist_list = [], [], [], [], [], []
 
     total_distance = 0
+    total_steps = len(range(0, len(ghi_race), 10))
 
-    for i in range(0, len(ghi_race), 10):  # 10-min intervals
+    for step, i in enumerate(range(0, len(ghi_race), 10)):  # 10-min intervals
         ghi = ghi_race[i]
         ein = calculate_solar_charge(ghi)
         eout = power_drained(v)
@@ -77,25 +86,40 @@ def simulate_race():
         bdr = (eout - ein) / battery_capacity  # per hour
         soc += (ein - eout) * (10 / 60) / battery_capacity  # 10-min step
 
-        '''this is the main logic that can be changed to
-          figure out how to optimize speed 
-          based on SoC and BDR to gain most dist'''
-        # race logic: adjust speed
-        if soc > 0.25:
-            if 0.03 < bdr < 0.08:
-                #v *= 1.03
-                v *= 1.15
-            elif bdr < 0.03:
-                #v *= 1.05
-                v *= 1.25
-            elif bdr > 0.08:
-                v *= 0.95
-                
+        '''Optimized race logic: adjust speed to target SoC at end
+           Uses predictive control based on remaining time and current SoC'''
+        
+        # Calculate how far we are from target trajectory
+        remaining_steps = total_steps - step
+        if remaining_steps > 0:
+            # linear decline from current to target
+            time_fraction = step / total_steps
+            ideal_soc = start_soc - (start_soc - target_soc) * time_fraction
+            soc_error = soc - ideal_soc
+            
+            # Adjust speed based on SoC error and battery drain rate
+            # Scale adjustments by aggressiveness parameter
+            if soc_error > 0.20:  # Way above target - speed up significantly
+                v *= (1 + 0.25 * aggressiveness)
+            elif soc_error > 0.10:  # Above target - speed up moderately
+                v *= (1 + 0.15 * aggressiveness)
+            elif soc_error > 0.03:  # Slightly above - speed up a bit
+                v *= (1 + 0.05 * aggressiveness)
+            elif soc_error > -0.03:  # Near target - fine tune
+                if bdr > 0.05:
+                    v *= (1 - 0.02 * aggressiveness)
+                else:
+                    v *= (1 + 0.02 * aggressiveness)
+            elif soc_error > -0.10:  # Below target - slow down
+                v *= (1 - 0.10 * aggressiveness)
+            else:  # Way below target - slow down significantly
+                v *= (1 - 0.20 * aggressiveness)
         else:
-            v *= 0.85  # conserve energy if SoC is low
+            # basically done, maintain current speed
+            continue
 
-        v = np.clip(v, 5, 35)
-        soc = max(soc, 0.2)
+        v = np.clip(v, 0, 35)
+        soc = max(soc, 0.05)  # Allow lower SoC since we're targeting 10%
 
         # calculate dist travelled per interval and increment to total dist
         interval_sec = 10 * 60  # 10 minutes in seconds
@@ -112,14 +136,28 @@ def simulate_race():
 
     return soc_list, bdr_list, speed_list, ghi_list, dist_list, total_dist_list, time_race
 
-# Run simulation
-soc, bdr, speed, ghi_list, dist_list, total_dist_list, time_race = simulate_race()
+# Run simulation with target 10% SoC and aggressiveness factor
+# Increase aggressiveness to make more aggressive speed adjustments
+TARGET_SOC = 0.10  # target SoC at end
+AGGRESSIVENESS = 1.6  # more aggressive speed adjustments
+soc, bdr, speed, ghi_list, dist_list, total_dist_list, time_race = simulate_race(target_soc=TARGET_SOC, aggressiveness=AGGRESSIVENESS)
 
 print("\n SIM RESULTS: ")
 for i in range(len(soc)):
     print(f"t={i*10} min | SoC={soc[i]*100:.2f}% | BDR={bdr[i]:.3f} | "
           f"Speed={speed[i]:.2f} m/s | GHI={ghi_list[i]:.1f} W/m² | "
           f"Step Dist={dist_list[i]:.1f} m | Total Dist={total_dist_list[i]:.1f} m")
+
+# Summary statistics
+print("\n" + "="*80)
+print("RACE SUMMARY:")
+print(f"Final SoC: {soc[-1]*100:.2f}% (Target: {TARGET_SOC*100:.2f}%)")
+print(f"SoC Error: {abs(soc[-1]*100 - TARGET_SOC*100):.2f}%")
+print(f"Total Distance: {total_dist_list[-1]/1000:.2f} km ({total_dist_list[-1]/1609.34:.2f} miles)")
+print(f"Average Speed: {np.mean(speed):.2f} m/s ({np.mean(speed)*3.6:.2f} km/h, {np.mean(speed)*2.237:.2f} mph)")
+print(f"Max Speed: {np.max(speed):.2f} m/s ({np.max(speed)*3.6:.2f} km/h)")
+print(f"Min Speed: {np.min(speed):.2f} m/s ({np.min(speed)*3.6:.2f} km/h)")
+print("="*80 + "\n")
 
 # plot GHI curve 
 plt.figure(figsize=(10, 5))
