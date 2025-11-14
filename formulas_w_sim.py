@@ -48,7 +48,7 @@ def force_rolling_resistance(v):
 def power_drained(v):
     F_d = force_drag(v)
     F_r = force_rolling_resistance(v)
-    return (F_d + F_r) * v * mu
+    return (F_d + F_r) * v / electrical_efficiency
 
 def calculate_solar_charge(ghi):
     return solar_panel_area * ghi * solar_panel_efficiency
