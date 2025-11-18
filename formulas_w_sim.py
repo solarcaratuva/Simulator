@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import openmeteo_requests
 import pandas as pd
 import requests_cache
-from retry_requests import retry
 
 
 # constants
@@ -13,7 +12,7 @@ solar_panel_efficiency = 0.23 # efficiency coefficient of the solar panel
 mass = 337 # kg, mass of the vehicle
 battery_capacity = 5000 # Wh, capacity of the vehicle's battery
 solar_panel_area = 4 # m^2, area of the solar panels on the vehicle
-C_dA = 0.73809 # drag coefficient times frontal area of the vehicle
+C_dA = 0.4162 * 1.8 # drag coefficient times frontal area of the vehicle
 rho = 1.192 # kg/m^3, air density in kentucky
 tire_pressure = 5  # bar
 mu = electrical_efficiency
@@ -65,7 +64,6 @@ def get_ghi_curve():
     hourly_data["shortwave_radiation"] = hourly_shortwave_radiation
     hourly_data["shortwave_radiation_instant"] = hourly_shortwave_radiation_instant
     hourly_dataframe = pd.DataFrame(data = hourly_data)
-    print("\nHourly data\n", hourly_dataframe)
     central_timezone = "America/Chicago"
     hourly_dataframe_central = hourly_dataframe.set_index("date").tz_convert(central_timezone)
     daytime_data = hourly_dataframe_central.between_time("10:00", "18:00")
