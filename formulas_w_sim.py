@@ -3,19 +3,30 @@ import matplotlib.pyplot as plt
 import openmeteo_requests
 import pandas as pd
 import requests_cache
+import json
+import math
 
+with open ("car_params.json", "r") as f:
+    params = json.load(f)
 
-# constants
-g = 9.80665 # m/s^2, acceleration due to gravity
-electrical_efficiency = 0.99 # efficiency coefficient of the electrical system
-solar_panel_efficiency = 0.23 # efficiency coefficient of the solar panel
-mass = 337 # kg, mass of the vehicle
-battery_capacity = 5000 # Wh, capacity of the vehicle's battery
-solar_panel_area = 4 # m^2, area of the solar panels on the vehicle
-C_dA = 0.4162 * 1.8 # drag coefficient times frontal area of the vehicle
-rho = 1.192 # kg/m^3, air density in kentucky
-tire_pressure = 5  # bar
-mu = electrical_efficiency
+for key, value in params.items():
+    if value == "inf":
+        params[key] = math.inf
+
+g = params["g"]
+regen_efficiency = params["regen_efficiency"]
+electrical_efficiency = params["electrical_efficiency"]
+solar_panel_efficiency = params["solar_panel_efficiency"]
+wheels = params["wheels"]
+mass = params["mass"]
+battery_capacity = params["battery_capacity"]
+battery_voltage = params["battery_voltage"]
+solar_panel_area = params["solar_panel_area"]
+C_dA = params["C_dA"]
+rho = params["rho"]
+v_starting = params["v_starting"]
+tire_pressure = params["tire_pressure"]
+
 
 # dummy solar GHI Curve
 # assuming the GHI curve is a parabola w/ 0 W/m^2 at 6:30 AM, peaks at 1 PM with 1200 W/m^2, and 0 W/m^2 at 6:30 PM

@@ -1,0 +1,15 @@
+{
+  "g": 9.80665,
+  "regen_efficiency": "inf",
+  "electrical_efficiency": 0.99,
+  "solar_panel_efficiency": 0.23,
+  "wheels": 4,
+  "mass": 337,
+  "battery_capacity": 5000,
+  "battery_voltage": "inf",
+  "solar_panel_area": 4,
+  "C_dA": 0.73809,
+  "rho": 1.192,
+  "v_starting": 90,
+  "tire_pressure": 5
+}
