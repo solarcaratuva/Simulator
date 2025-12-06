@@ -172,3 +172,19 @@ plt.grid(True)
 
 plt.savefig("ghi_plot.png")  # saves plot as PNG
 plt.close()  
+
+# Plot SoC over the day
+plt.figure(figsize=(10, 5))
+
+# time axis: one point every 10 minutes from 10:00 to ~18:00
+t_soc_hours = np.arange(0, len(soc) * 10, 10) / 60 + 10  # 10 = 10 AM
+
+plt.plot(t_soc_hours, np.array(soc) * 100)  # convert to %
+plt.xlabel("Time (hours)")
+plt.ylabel("State of Charge (%)")
+plt.title("Battery SoC Over Race Day")
+plt.ylim(0, 100)
+plt.grid(True)
+
+plt.savefig("soc_plot.png")
+plt.close()
