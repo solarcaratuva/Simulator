@@ -1,18 +1,32 @@
 import numpy as np
 import matplotlib.pyplot as plt
+import openmeteo_requests
+import pandas as pd
+import requests_cache
+import json
+import math
 
+with open ("car_params.json", "r") as f:
+    params = json.load(f)
 
-# constants
-g = 9.80665 # m/s^2, acceleration due to gravity
-electrical_efficiency = 0.99 # efficiency coefficient of the electrical system
-solar_panel_efficiency = 0.23 # efficiency coefficient of the solar panel
-mass = 337 # kg, mass of the vehicle
-battery_capacity = 5000 # Wh, capacity of the vehicle's battery
-solar_panel_area = 4 # m^2, area of the solar panels on the vehicle
-C_dA = 0.73809 # drag coefficient times frontal area of the vehicle
-rho = 1.192 # kg/m^3, air density in kentucky
-tire_pressure = 5  # bar
-mu = electrical_efficiency
+for key, value in params.items():
+    if value == "inf":
+        params[key] = math.inf
+
+g = params["g"]
+regen_efficiency = params["regen_efficiency"]
+electrical_efficiency = params["electrical_efficiency"]
+solar_panel_efficiency = params["solar_panel_efficiency"]
+wheels = params["wheels"]
+mass = params["mass"]
+battery_capacity = params["battery_capacity"]
+battery_voltage = params["battery_voltage"]
+solar_panel_area = params["solar_panel_area"]
+C_dA = params["C_dA"]
+rho = params["rho"]
+v_starting = params["v_starting"]
+tire_pressure = params["tire_pressure"]
+
 
 # dummy solar GHI Curve
 # assuming the GHI curve is a parabola w/ 0 W/m^2 at 6:30 AM, peaks at 1 PM with 1200 W/m^2, and 0 W/m^2 at 6:30 PM
@@ -33,7 +47,46 @@ def generate_ghi_curve():
     ghi_noisy = ghi_base * smooth_noise
 
     return time_minutes, ghi_noisy
+
+def get_ghi_curve():
+    openmeteo = openmeteo_requests.Client(
+    session = requests_cache.CachedSession(
+        cache_name='openmeteo_cache',
+        backend='memory'
+    )
+    )
+    url = "https://api.open-meteo.com/v1/forecast"
+    params = {
+        "latitude": 37.000495,
+        "longitude": -86.368110,
+        "hourly": ["shortwave_radiation", "shortwave_radiation_instant"]
+    }
+    responses = openmeteo.weather_api(url, params=params)
+    response = responses[0]
+    hourly = response.Hourly()
+    hourly_shortwave_radiation = hourly.Variables(0).ValuesAsNumpy()
+    hourly_shortwave_radiation_instant = hourly.Variables(1).ValuesAsNumpy()
+    hourly_data = {"date": pd.date_range(
+	start = pd.to_datetime(hourly.Time(), unit = "s", utc = True),
+	end =  pd.to_datetime(hourly.TimeEnd(), unit = "s", utc = True),
+	freq = pd.Timedelta(seconds = hourly.Interval()),
+	inclusive = "left"
+    )}
+    hourly_data["shortwave_radiation"] = hourly_shortwave_radiation
+    hourly_data["shortwave_radiation_instant"] = hourly_shortwave_radiation_instant
+    hourly_dataframe = pd.DataFrame(data = hourly_data)
+    central_timezone = "America/Chicago"
+    hourly_dataframe_central = hourly_dataframe.set_index("date").tz_convert(central_timezone)
+    daytime_data = hourly_dataframe_central.between_time("10:00", "18:00")
+    # daytime_data = daytime_data.head(2)
+    daytime_data = daytime_data[1:10]  # first day only
+    daytime_data = daytime_data.reset_index()
+    daytime_data = daytime_data.resample("1T", on="date").mean().interpolate(method="spline", order=3)
+    time_minutes = np.arange(0, len(daytime_data) * 1, 1) + 10 * 60  # minutes since midnight
+    ghi_data = daytime_data["shortwave_radiation"].to_numpy()
+    return time_minutes, ghi_data
     
+
 # crr, Fd, Fr, power drained (E out), solar charge (E in)
 def get_crr(v):
     v_kmh = v * 3.6  # convert to km/h
@@ -48,7 +101,7 @@ def force_rolling_resistance(v):
 def power_drained(v):
     F_d = force_drag(v)
     F_r = force_rolling_resistance(v)
-    return (F_d + F_r) * v * mu
+    return (F_d + F_r) * v / electrical_efficiency
 
 def calculate_solar_charge(ghi):
     return solar_panel_area * ghi * solar_panel_efficiency
@@ -63,13 +116,15 @@ def simulate_race(target_soc=0.10, aggressiveness=1.0, start_soc=1.0):
     - aggressiveness: Multiplier for speed adjustments (default 1.0)
                      Higher values = more aggressive speed changes
     """
-    time_minutes, ghi_data = generate_ghi_curve()
+    time_minutes, ghi_data = get_ghi_curve()
 
     # assuming that race is 10 AM to 6 PM
     start_idx = int((10 - 6.5) * 60)   # 10:00 AM
     end_idx = int((18 - 6.5) * 60)     # 6:00 PM
-    ghi_race = ghi_data[start_idx:end_idx + 1]
-    time_race = time_minutes[start_idx:end_idx + 1]
+    # ghi_race = ghi_data[start_idx:end_idx + 1]
+    # time_race = time_minutes[start_idx:end_idx + 1]
+    ghi_race = ghi_data
+    time_race = time_minutes
 
     soc = start_soc # starting SoC
     v = 13.4  # m/s (30 mph), starting speed
@@ -79,7 +134,7 @@ def simulate_race(target_soc=0.10, aggressiveness=1.0, start_soc=1.0):
     total_steps = len(range(0, len(ghi_race), 10))
 
     for step, i in enumerate(range(0, len(ghi_race), 10)):  # 10-min intervals
-        ghi = ghi_race[i]
+        ghi = ghi_race[i].clip(0)  # ensure non-negative GHI
         ein = calculate_solar_charge(ghi)
         eout = power_drained(v)
 
