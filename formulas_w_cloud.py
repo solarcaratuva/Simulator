@@ -47,15 +47,14 @@ def get_ghi_curve():
     params = {
         "latitude": 37.000495,
         "longitude": -86.36811,
-        "hourly": ["shortwave_radiation", "shortwave_radiation_instant", "cloud_cover"],
+        "hourly": ["shortwave_radiation_instant", "cloud_cover"],
     }
     responses = openmeteo.weather_api(url, params=params)
     response = responses[0]
     hourly = response.Hourly()
 
-    hourly_shortwave_radiation = hourly.Variables(0).ValuesAsNumpy()
-    hourly_shortwave_radiation_instant = hourly.Variables(1).ValuesAsNumpy()
-    hourly_cloud_cover = hourly.Variables(2).ValuesAsNumpy()
+    hourly_shortwave_radiation_instant = hourly.Variables(0).ValuesAsNumpy()
+    hourly_cloud_cover = hourly.Variables(1).ValuesAsNumpy()
 
     hourly_data = {"date": pd.date_range(
 	start = pd.to_datetime(hourly.Time(), unit = "s", utc = True),
@@ -63,7 +62,6 @@ def get_ghi_curve():
 	freq = pd.Timedelta(seconds = hourly.Interval()),
 	inclusive = "left"
     )}
-    hourly_data["shortwave_radiation"] = hourly_shortwave_radiation
     hourly_data["shortwave_radiation_instant"] = hourly_shortwave_radiation_instant
     hourly_data["cloud_cover"] = hourly_cloud_cover
 
@@ -78,37 +76,43 @@ def get_ghi_curve():
     # resample to 1 minute intervals
     daytime_data = daytime_data.resample("min", on="date").mean()
     # interpolate shortwave radiation columns with cubic spline
-    daytime_data["shortwave_radiation"] = daytime_data["shortwave_radiation"].interpolate(method="spline", order=3)
     daytime_data["shortwave_radiation_instant"] = daytime_data["shortwave_radiation_instant"].interpolate(method="spline", order=3)
     # interpolate cloud cover linearly
     daytime_data["cloud_cover"] = daytime_data["cloud_cover"].interpolate(method="linear")
 
     time_minutes = np.arange(0, len(daytime_data) * 1, 1) + 10 * 60  # minutes since midnight
-    ghi_data = daytime_data["shortwave_radiation"].to_numpy()
+    ghi_data = daytime_data["shortwave_radiation_instant"].to_numpy()
     cloud_data = daytime_data["cloud_cover"].to_numpy() / 100 
 
     return time_minutes, ghi_data, cloud_data
     
 
-def ideal_soc_cloud2(start_soc, target_soc, cloud_data, alpha=0.5):
+def ideal_soc_cloud(start_soc, target_soc, cloud_data, alpha=0.5):
 
     """
     Calculate an ideal SoC curve that reacts to cloudiness:
     - Sunny (cloud low) → can use more battery (drop SoC faster)
     - Cloudy (cloud high) → conserve battery (drop SoC slower)
     alpha: controls strength of cloud impact (0=ignore clouds, 1=fully reactive)
+    Ensures the final SoC is close to target_soc by normalizing cloud-weighted drops
     """
     n_steps = len(cloud_data)
     soc = np.zeros(n_steps)
     soc[0] = start_soc
     soc_drop_total = start_soc - target_soc
-    base_drop_per_step = soc_drop_total / n_steps  # uniform drop if no clouds
+    
+    # Calculate cloud-weighted factors for each step
+    # More sunny (low cloud) → higher factor → faster drop
+    cloud_factors = (1 - cloud_data) * alpha + (1 - alpha)
+    
+    # Normalize cloud factors so the total drop equals soc_drop_total
+    total_weighted_steps = np.sum(cloud_factors)
+    normalized_factors = cloud_factors * (soc_drop_total / total_weighted_steps)
 
     for i in range(1, n_steps):
-        # Adjust step drop based on cloudiness
-        cloud_factor = (1 - cloud_data[i]) * alpha + (1 - alpha)  # more sunny → faster drop
-        soc[i] = soc[i-1] - base_drop_per_step * cloud_factor
-        soc[i] = max(soc[i], target_soc)  # don’t drop below target
+        # Apply the normalized drop at each step
+        soc[i] = soc[i-1] - normalized_factors[i]
+        soc[i] = max(soc[i], target_soc)  # don't drop below target
 
     time_x = np.arange(n_steps)
 
@@ -126,48 +130,6 @@ def ideal_soc_cloud2(start_soc, target_soc, cloud_data, alpha=0.5):
     plt.close()
     
     return soc
-
-def ideal_soc_cloud2(start_soc, target_soc, cloud_data):
-    """
-    Ideal SoC curve reacts to cloudiness:
-    - sunny (cloud low) --> can spend more battery
-    - cloudy (cloud high) --> conserve battery
-    Params: start_soc --> soc at beginning (1.0 = 100%)
-            target_soc --> soc at end (e.g., 0.10 = 10%)
-            cloud_data --> array of cloud cover values (0 to 1)
-    """
-
-    cloud_data = np.asarray(cloud_data)
-    n_steps = len(cloud_data)
-    soc_drop_total = start_soc - target_soc
-
-    # cumulative “sun exposure” weighting
-    sun_factor = 1 - cloud_data   # 0 = cloudy, 1 = sunny
-
-    #builds cumulative curve that grows faster in sunny period and slower in cloudy periods
-    sun_factor_cum = np.cumsum(sun_factor)
-    sun_factor_cum /= sun_factor_cum[-1]
-    ideal_soc = start_soc - soc_drop_total * sun_factor_cum
-
-    #plot curve
-    plt.figure(figsize=(8, 4))
-    time_x = np.arange(n_steps)
-
-    plt.plot(time_x, ideal_soc, label="Ideal SoC with Cloud Cover", linewidth=2)
-    plt.plot(time_x, 1 - cloud_data * (1 - target_soc), "--", alpha=0.3, label="Cloud Cover (scaled)")
-
-    plt.title("Ideal SoC with Cloud Cover")
-    plt.xlabel("Time Step")
-    plt.ylabel("State of Charge")
-    plt.ylim(0, 1.05)
-    plt.grid(True)
-    plt.legend()
-
-    plt.tight_layout()
-    plt.savefig("soc_curve_with_cloud.png", dpi=300)
-    plt.close()
-
-    return ideal_soc
 
 #race simulator with cloud adjustment
 def simulate_race_cloud(start_soc=1.0, target_soc=0.10, aggressiveness=1.0):
