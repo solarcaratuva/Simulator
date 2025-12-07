@@ -163,7 +163,7 @@ def simulate_race_cloud(start_soc=1.0, target_soc=0.10, aggressiveness=1.0):
         elif soc_error > 0.03:
             v *= (1 + 0.05 * aggressiveness)
         elif soc_error > -0.03:
-            if (eout - ein)/battery_capacity > 0.05:
+            if bdr > 0.05:
                 v *= (1 - 0.02 * aggressiveness)
             else:
                 v *= (1 + 0.02 * aggressiveness)
@@ -173,7 +173,9 @@ def simulate_race_cloud(start_soc=1.0, target_soc=0.10, aggressiveness=1.0):
             v *= (1 - 0.20 * aggressiveness)
 
         # cloud-reactive speed adjustment
-        v *= 1 + (1 - cloud) * 0.1 * aggressiveness - cloud * 0.05 * aggressiveness
+        # if cloud > 0.5:
+        #     v *= 1 + (1 - cloud) * 0.1 * aggressiveness - cloud * 0.05 * aggressiveness
+
         v = np.clip(v, 0, 35)
         soc = max(soc, 0.05)
 
