@@ -45,8 +45,8 @@ def get_ghi_curve():
     )
     url = "https://api.open-meteo.com/v1/forecast"
     params = {
-        "latitude": 37.000495,
-        "longitude": -86.36811,
+        "latitude": 46.417585,
+        "longitude": -94.284839,
         "hourly": ["shortwave_radiation_instant", "cloud_cover"],
     }
     responses = openmeteo.weather_api(url, params=params)
@@ -134,6 +134,13 @@ def ideal_soc_cloud(start_soc, target_soc, cloud_data, alpha=0.5):
 #race simulator with cloud adjustment
 def simulate_race_cloud(start_soc=1.0, target_soc=0.10, aggressiveness=1.0):
     time_minutes, ghi_data, cloud_data = get_ghi_curve()
+
+    # Plot cloud cover curve
+    plt.figure(figsize=(8, 4))
+    plt.plot(time_minutes / 60, cloud_data, label="Cloud Cover", color='orange', linewidth=2)
+    plt.title("Cloud Cover Over Time")
+    plt.xlabel("Time (hours)")
+    plt.savefig("cloud_cover_curve.png", dpi=300)
 
     soc = start_soc
     v = 13.4
