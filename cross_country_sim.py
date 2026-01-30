@@ -153,12 +153,18 @@ def simulate_race_cloud(start_soc=1.0, target_soc=0.10, aggressiveness=1.0):
     for step, i in enumerate(range(0, len(ghi_data), 10)):
         ghi = ghi_data[i].clip(0)
         cloud = cloud_data[i]
-
+        
         ein = calculate_solar_charge(ghi)
         eout = power_drained(v)
-
-        bdr = (eout - ein) / battery_capacity
-        soc += (ein - eout) * (10 / 60) / battery_capacity
+        
+        #added dt for time step (10 min time step)
+        dt_hours = 10 / 60
+        bdr = (eout - ein) * dt_hours / battery_capacity
+        soc -= bdr
+        
+        # bdr = (eout - ein) / battery_capacity
+        # soc += (ein - eout) * (10 / 60) / battery_capacity
+        
 
         soc_error = soc - ideal_soc_curve[i]
 
