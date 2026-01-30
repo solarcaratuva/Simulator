@@ -225,7 +225,7 @@ plt.ylabel("GHI (W/m²)")
 plt.title("Randomized Solar Irradiance (GHI) During Race Day")
 plt.grid(True)
 
-plt.savefig("ghi_plot.png")  # saves plot as PNG
+plt.savefig("plots/cross_country/ghi_plot.png")  # saves plot as PNG
 plt.close()  
 
 # Plot SoC over the day
@@ -241,5 +241,5 @@ plt.title("Battery SoC Over Race Day")
 plt.ylim(0, 100)
 plt.grid(True)
 
-plt.savefig("soc_plot.png")
+plt.savefig("plots/cross_country/soc_plot.png")
 plt.close()

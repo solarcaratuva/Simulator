@@ -126,7 +126,7 @@ def ideal_soc_cloud(start_soc, target_soc, cloud_data, alpha=0.5):
     plt.grid(True)
     plt.legend()
     plt.tight_layout()
-    plt.savefig("soc_curve_with_cloud.png", dpi=300)
+    plt.savefig("plots/cross_country/soc_curve_with_cloud.png", dpi=300)
     plt.close()
     
     return soc
@@ -140,7 +140,7 @@ def simulate_race_cloud(start_soc=1.0, target_soc=0.10, aggressiveness=1.0):
     plt.plot(time_minutes / 60, cloud_data, label="Cloud Cover", color='orange', linewidth=2)
     plt.title("Cloud Cover Over Time")
     plt.xlabel("Time (hours)")
-    plt.savefig("cloud_cover_curve.png", dpi=300)
+    plt.savefig("plots/cross_country/cloud_cover_curve.png", dpi=300)
 
     soc = start_soc
     v = 13.4
