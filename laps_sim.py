@@ -86,10 +86,10 @@ class RaceConfig:
     start_soc: float = 1.0         # Starting state of charge (100%)
     target_soc: float = 0.10       # Target SoC at end (10%)
     min_soc: float = 0.05          # Minimum allowed SoC (5%)
-    aggressiveness: float = 1.6    # Speed adjustment aggressiveness
+    aggressiveness: float = 1.2   # Speed adjustment aggressiveness
     initial_speed_mps: float = 20.0  # Initial speed in m/s (~45 mph)
     max_speed_mps: float = 35.0    # Max speed m/s (~78 mph)
-    min_speed_mps: float = 8.0     # Min speed m/s (~18 mph)
+    min_speed_mps: float = 8.0     # Min speed ms (~18 mph)
     time_step_minutes: float = 1.0 # Simulation time step
 
 
@@ -314,7 +314,11 @@ class SpeedController:
     
     def adjust_speed(self, current_speed: float, soc_error: float, bdr: float) -> float:
         """
-        Adjust speed based on SoC tracking error.
+        Adjust speed based on SoC tracking error using a smooth continuous function.
+        
+        Uses a smooth curve that transitions continuously between speed adjustments,
+        eliminating discrete jumps and oscillations. The function is symmetric and
+        responsive to both positive and negative SoC errors.
         
         Args:
             current_speed: Current velocity (m/s)
@@ -326,21 +330,26 @@ class SpeedController:
         """
         agg = self.config.aggressiveness
         
-        if soc_error > 0.15:  # Way above target - speed up significantly
-            speed = current_speed * (1 + 0.20 * agg)
-        elif soc_error > 0.08:  # Above target - speed up moderately
-            speed = current_speed * (1 + 0.12 * agg)
-        elif soc_error > 0.03:  # Slightly above - speed up a bit
-            speed = current_speed * (1 + 0.05 * agg)
-        elif soc_error > -0.03:  # Near target - fine tune based on BDR
+        # Smooth continuous adjustment using tanh sigmoid curve
+        # This provides smooth transitions without discrete jumps
+        # soc_error range: -0.2 to +0.2 covers most realistic scenarios
+        
+        # Main smooth adjustment based on SoC error
+        # Normalize error to a reasonable range and apply smooth sigmoid
+        normalized_error = soc_error / 0.15  # Scale for smooth behavior
+        smooth_factor = np.tanh(normalized_error * 1.5) * 0.18  # Maps to ~±0.18 adjustment
+        
+        # Fine-tuning when very close to target (-0.03 to +0.03 range)
+        # If BDR is high (draining fast), slow down slightly; otherwise maintain/speed up
+        if abs(soc_error) < 0.03:
             if bdr > 0.05:
-                speed = current_speed * (1 - 0.02 * agg)
+                smooth_factor -= 0.01
             else:
-                speed = current_speed * (1 + 0.02 * agg)
-        elif soc_error > -0.08:  # Below target - slow down
-            speed = current_speed * (1 - 0.08 * agg)
-        else:  # Way below target - slow down significantly
-            speed = current_speed * (1 - 0.15 * agg)
+                smooth_factor += 0.005
+        
+        # Apply adjustment with aggressiveness scaling
+        speed_multiplier = 1.0 + (smooth_factor * agg)
+        speed = current_speed * speed_multiplier
         
         # Clamp to allowed speed range
         return np.clip(speed, self.config.min_speed_mps, self.config.max_speed_mps)

@@ -168,22 +168,20 @@ def simulate_race_cloud(start_soc=1.0, target_soc=0.10, aggressiveness=1.0):
 
         soc_error = soc - ideal_soc_curve[i]
 
-        # speed adjustment based on SoC error
-        if soc_error > 0.20:
-            v *= (1 + 0.25 * aggressiveness)
-        elif soc_error > 0.10:
-            v *= (1 + 0.15 * aggressiveness)
-        elif soc_error > 0.03:
-            v *= (1 + 0.05 * aggressiveness)
-        elif soc_error > -0.03:
+        # Smooth continuous speed adjustment using tanh sigmoid curve
+        # This provides smooth transitions without discrete jumps
+        normalized_error = soc_error / 0.15  # Scale for smooth behavior
+        smooth_factor = np.tanh(normalized_error * 1.5) * 0.18  # Maps to ~±0.18 adjustment
+        
+        # Fine-tuning when very close to target (-0.03 to +0.03 range)
+        if abs(soc_error) < 0.03:
             if bdr > 0.05:
-                v *= (1 - 0.02 * aggressiveness)
+                smooth_factor -= 0.01
             else:
-                v *= (1 + 0.02 * aggressiveness)
-        elif soc_error > -0.10:
-            v *= (1 - 0.10 * aggressiveness)
-        else:
-            v *= (1 - 0.20 * aggressiveness)
+                smooth_factor += 0.005
+        
+        # Apply adjustment with aggressiveness scaling
+        v *= (1.0 + smooth_factor * aggressiveness)
 
         # cloud-reactive speed adjustment
         # if cloud > 0.5:
