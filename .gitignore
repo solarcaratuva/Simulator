@@ -206,6 +206,8 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 
-# Simulation Plots - ignore entire directories
-plots/cross_country/
-plots/laps/
+# Simulation Plots - ignore everything except .gitkeep
+plots/cross_country/*
+!plots/cross_country/.gitkeep
+plots/laps/*
+!plots/laps/.gitkeep
