@@ -1,6 +1,6 @@
 {
   "g": 9.80665,
-  "regen_efficiency": "inf",
+  "regen_efficiency": 0.5,
   "electrical_efficiency": 0.99,
   "solar_panel_efficiency": 0.23,
   "wheels": 4,

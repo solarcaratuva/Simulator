@@ -51,6 +51,7 @@ class CarConfig:
     electrical_efficiency: float = 0.99
     C_dA: float = 0.73809  # drag coefficient * frontal area
     tire_pressure: float = 5  # bar
+    regen_efficiency: float = 0.5  # regenerative braking efficiency coefficient (μ)
     rho: float = 1.192  # air density kg/m^3
     g: float = 9.80665  # gravity m/s^2
     
@@ -73,6 +74,7 @@ class CarConfig:
             electrical_efficiency=params.get("electrical_efficiency", 0.99),
             C_dA=params.get("C_dA", 0.73809),
             tire_pressure=params.get("tire_pressure", 5),
+            regen_efficiency=params.get("regen_efficiency", 0.5),
             rho=params.get("rho", 1.192),
             g=params.get("g", 9.80665)
         )
@@ -160,6 +162,19 @@ class PhysicsEngine:
     def solar_power(self, ghi: float) -> float:
         """Calculate solar power input (W)."""
         return self.car.solar_panel_area * ghi * self.car.solar_panel_efficiency
+    
+    def regen_energy(self, v_old: float, v_new: float) -> float:
+        """
+        Calculate energy recovered from regenerative braking (Wh).
+        
+        E_regen = (1/2 * m * (v_old² - v_new²)) / 3600 * μ
+        
+        Only returns positive energy when decelerating (v_new < v_old).
+        """
+        if v_new >= v_old:
+            return 0.0
+        delta_ke = 0.5 * self.car.mass * (v_old ** 2 - v_new ** 2)
+        return (delta_ke / 3600) * self.car.regen_efficiency
     
     def battery_drain_rate(self, v: float, ghi: float) -> float:
         """Calculate battery drain rate (fraction per hour)."""
@@ -448,7 +463,14 @@ class LapsRaceSimulator:
             
             # Adjust speed based on SoC tracking
             soc_error = soc - ideal_soc[i]
+            prev_speed = speed
             speed = self.controller.adjust_speed(speed, soc_error, bdr)
+            
+            # Apply regenerative braking energy if decelerating
+            regen_wh = self.physics.regen_energy(prev_speed, speed)
+            if regen_wh > 0:
+                soc += regen_wh / self.car.battery_capacity
+                soc = min(soc, 1.0)  # Cap at 100%
             
             # Store results
             soc_arr[i] = soc
@@ -737,7 +759,7 @@ def main():
     race = RaceConfig(
         start_soc=1.0,
         target_soc=0.10,
-        aggressiveness=1.6,
+        aggressiveness=10.0,
         initial_speed_mps=20.0,  # ~45 mph
         time_step_minutes=1.0
     )
@@ -772,6 +794,7 @@ def main():
     print("   - plots/laps/laps_soc_plot.png")
     print("   - plots/laps/laps_speed_plot.png")
     print("   - plots/laps/laps_weather_plot.png")
+
     
     return results
 
