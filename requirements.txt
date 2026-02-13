@@ -1,0 +1,6 @@
+numpy
+matplotlib
+openmeteo_requests
+pandas
+requests_cache
+
