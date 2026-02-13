@@ -211,6 +211,8 @@ plots/cross_country/*
 !plots/cross_country/.gitkeep
 plots/laps/*
 !plots/laps/.gitkeep
+plots/predictive/*
+!plots/predictive/.gitkeep
 
 .idea
 venv
