@@ -146,7 +146,14 @@ class InteractiveSimulator:
                 lap_dist -= self.track.lap_distance_m
 
             soc_error = soc - ideal_soc[i]
+            prev_speed = speed
             speed = self.controller.adjust_speed(speed, soc_error, bdr)
+
+            # Apply regenerative braking energy if decelerating
+            regen_wh = self.physics.regen_energy(prev_speed, speed)
+            if regen_wh > 0:
+                soc += regen_wh / self.car.battery_capacity
+                soc = min(soc, 1.0)  # Cap at 100%
 
             speeds[i] = speed
             socs[i] = soc

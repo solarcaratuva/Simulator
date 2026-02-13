@@ -14,6 +14,7 @@ solar_panel_area = 4 # m^2, area of the solar panels on the vehicle
 C_dA = 0.4162 * 1.8 # drag coefficient times frontal area of the vehicle
 rho = 1.192 # kg/m^3, air density in kentucky
 tire_pressure = 5  # bar
+regen_efficiency = 0.5  # regenerative braking efficiency coefficient (μ)
 mu = electrical_efficiency
 
 # crr, Fd, Fr, power drained (E out), solar charge (E in)
@@ -34,6 +35,19 @@ def power_drained(v):
 
 def calculate_solar_charge(ghi):
     return solar_panel_area * ghi * solar_panel_efficiency
+
+def regen_energy(v_old, v_new):
+    """
+    Calculate energy recovered from regenerative braking (Wh).
+
+    E_regen = (1/2 * m * (v_old² - v_new²)) / 3600 * μ
+
+    Only returns positive energy when decelerating (v_new < v_old).
+    """
+    if v_new >= v_old:
+        return 0.0
+    delta_ke = 0.5 * mass * (v_old ** 2 - v_new ** 2)
+    return (delta_ke / 3600) * regen_efficiency
 
 #NEW GHI CURVE WITH API DATA AND CLOUD COVER
 def get_ghi_curve():
@@ -181,6 +195,7 @@ def simulate_race_cloud(start_soc=1.0, target_soc=0.10, aggressiveness=1.0):
                 smooth_factor += 0.005
         
         # Apply adjustment with aggressiveness scaling
+        prev_speed = v
         v *= (1.0 + smooth_factor * aggressiveness)
 
         # cloud-reactive speed adjustment
@@ -189,6 +204,12 @@ def simulate_race_cloud(start_soc=1.0, target_soc=0.10, aggressiveness=1.0):
 
         v = np.clip(v, 0, 35)
         soc = max(soc, 0.05)
+
+        # Apply regenerative braking energy if decelerating
+        regen_wh = regen_energy(prev_speed, v)
+        if regen_wh > 0:
+            soc += regen_wh / battery_capacity
+            soc = min(soc, 1.0)  # Cap at 100%
 
         dist_step = v * interval_sec
         total_distance += dist_step
