@@ -327,7 +327,7 @@ class SpeedController:
         
         return soc
     
-    def adjust_speed(self, current_speed: float, s: float, bdr: float) -> float:
+    def adjust_speed(self, current_speed: float, soc_error: float, bdr: float) -> float:
         """
         Adjust speed based on SoC tracking error using a smooth continuous function.
         
