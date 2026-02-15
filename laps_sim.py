@@ -179,7 +179,7 @@ class PhysicsEngine:
     def battery_drain_rate(self, v: float, ghi: float) -> float:
         """Calculate battery drain rate (fraction per hour)."""
         power_out = self.power_drained(v)
-        power_in = self.solar_power(ghi) + self.regen_energy(v, v) * 3600  # Convert Wh back to W for rate calculation
+        power_in = self.solar_power(ghi) 
         return (power_out - power_in) / self.car.battery_capacity
 
 
@@ -327,7 +327,7 @@ class SpeedController:
         
         return soc
     
-    def adjust_speed(self, current_speed: float, soc_error: float, bdr: float) -> float:
+    def adjust_speed(self, current_speed: float, : float, bdr: float) -> float:
         """
         Adjust speed based on SoC tracking error using a smooth continuous function.
         
