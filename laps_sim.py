@@ -157,7 +157,7 @@ class PhysicsEngine:
         """Calculate power consumption at given velocity (W)."""
         F_d = self.force_drag(v)
         F_r = self.force_rolling_resistance(v)
-        return (F_d + F_r) * v / self.car.electrical_efficiency
+        return (F_d + F_r) * v * self.car.electrical_efficiency
     
     def solar_power(self, ghi: float) -> float:
         """Calculate solar power input (W)."""
