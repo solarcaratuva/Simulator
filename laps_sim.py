@@ -179,7 +179,7 @@ class PhysicsEngine:
     def battery_drain_rate(self, v: float, ghi: float) -> float:
         """Calculate battery drain rate (fraction per hour)."""
         power_out = self.power_drained(v)
-        power_in = self.solar_power(ghi)
+        power_in = self.solar_power(ghi) + self.regen_energy(v, v) * 3600  # Convert Wh back to W for rate calculation
         return (power_out - power_in) / self.car.battery_capacity
 
 
