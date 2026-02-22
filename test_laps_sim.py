@@ -774,17 +774,101 @@ if __name__ == "__main__":
     # Create tester instance
     tester = SimulationTester()
     
-    #Run with current real-time weather on VIR track
-
-    try:
-        results = tester.run_with_synthetic_weather(
-            WeatherCondition.partly_cloudy(),
+    # Define test locations with same track distance and race config
+    test_locations = [
+        {
+            "name": "Virginia International Raceway (Patriot Course)",
+            "location": "Alton, Virginia",
+            "latitude": 36.5666,
+            "longitude": -79.2058,
+            "lap_distance_km": 1.77,
+            "timezone": "America/New_York"
+        },
+        {
+            "name": "Circuit of The Americas",
+            "location": "Austin, Texas",
+            "latitude": 30.2672,
+            "longitude": -97.7431,
+            "lap_distance_km": 1.77,  # Same distance for fair comparison
+            "timezone": "America/Chicago"
+        },
+        {
+            "name": "WeatherTech Raceway Laguna Seca",
+            "location": "Monterey, California",
+            "latitude": 36.5750,
+            "longitude": -121.7556,
+            "lap_distance_km": 1.77,  # Same distance for fair comparison
+            "timezone": "America/Los_Angeles"
+        }
+    ]
+    
+    print("\n" + "="*80)
+    print("  REAL-TIME WEATHER TESTS - MULTIPLE LOCATIONS")
+    print("="*80)
+    print("Testing with current weather conditions at different race locations")
+    print("(Same car and race configuration across all tests)\n")
+    
+    results_list = []
+    
+    for location_config in test_locations:
+        # Create track with this location
+        track = tester.create_custom_track(
+            name=location_config["name"],
+            location=location_config["location"],
+            latitude=location_config["latitude"],
+            longitude=location_config["longitude"],
+            lap_distance_km=location_config["lap_distance_km"],
+            timezone=location_config["timezone"]
         )
-        #results = tester.run_with_current_weather(track=mini_track)
-        if results:
-            tester.generate_report(results, detailed=False)
-    except Exception as e:
-        print(f"Could not fetch current weather: {e}")
+        
+        try:
+            print(f"\n📍 Testing: {location_config['name']}")
+            print(f"   Location: {location_config['location']}")
+            print(f"   Fetching current weather...", end="")
+            
+            results = tester.run_with_current_weather(
+                track=track,
+                car=tester.default_car,
+                race=tester.default_race,
+                verbose=False
+            )
+            
+            if results:
+                print(f" ✓")
+                results_list.append((location_config["name"], results))
+                # Save plots with location-specific filenames in test_laps_dashboards
+                plotter = SimulationPlotter(results, track)
+                location_name = location_config['location'].replace(' ', '_').replace(',', '')
+                plots_dir = "plots/laps/test_laps_dashboards"
+                plotter.plot_dashboard(save_path=f"{plots_dir}/{location_name}_dashboard.png")
+                plotter.plot_soc(save_path=f"{plots_dir}/{location_name}_soc.png")
+                plotter.plot_speed(save_path=f"{plots_dir}/{location_name}_speed.png")
+                plotter.plot_weather(save_path=f"{plots_dir}/{location_name}_weather.png")
+                
+                print(f"   📊 Plots saved to {plots_dir}/")
+            else:
+                print(f" ✗ (No results)")
+        
+        except Exception as e:
+            print(f" ✗\n   Error: {e}")
+    
+    # Print comparison summary
+    if results_list:
+        print("\n" + "="*80)
+        print("  LOCATION COMPARISON SUMMARY")
+        print("="*80 + "\n")
+        
+        print(f"{'Location':<40} | {'Laps':>6} | {'Distance (km)':>14} | {'Final SoC %':>12} | {'Avg Speed':>10}")
+        print(f"{'-'*40}-+-{'-'*6}-+-{'-'*14}-+-{'-'*12}-+-{'-'*10}")
+        
+        for location_name, result in results_list:
+            print(
+                f"{location_name:<40} | {result.total_laps:>6} | "
+                f"{result.total_distance_km:>14.2f} | {result.final_soc*100:>12.1f} | "
+                f"{result.avg_speed_mph:>10.1f} mph"
+            )
+        
+        print("\n✓ Location weather testing complete!\n")
 
 
         
