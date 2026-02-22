@@ -7,8 +7,8 @@ completing as many laps as possible within a time window while managing
 battery state of charge (SoC).
 
 Track Info:
-- Location: Brainerd, Minnesota (46.4176°N, 94.2848°W)
-- Road Course Length: 2.5 miles (4.023 km)
+- Location: Alton, Virginia (36.5666°N, 79.2058°W)
+- Patriot Course Length: 1.10 miles (1.77 km)
 """
 
 from dataclasses import dataclass, field
@@ -29,13 +29,13 @@ import requests_cache
 @dataclass
 class TrackConfig:
     """Configuration for the race track."""
-    name: str = "Brainerd International Raceway"
-    location: str = "Brainerd, Minnesota"
-    latitude: float = 46.4176
-    longitude: float = -94.2848
-    lap_distance_km: float = 4.023  # 2.5 miles road course
+    name: str = "Virginia International Raceway (Patriot Course)"
+    location: str = "Alton, Virginia"
+    latitude: float = 36.5666
+    longitude: float = -79.2058
+    lap_distance_km: float = 1.77  # 1.10 miles Patriot Course
     lap_distance_m: float = field(init=False)
-    timezone: str = "America/Chicago"
+    timezone: str = "America/New_York"
     
     def __post_init__(self):
         self.lap_distance_m = self.lap_distance_km * 1000
@@ -87,7 +87,7 @@ class RaceConfig:
     end_time_hour: float = 18.0    # 6:00 PM
     start_soc: float = 1.0         # Starting state of charge (100%)
     target_soc: float = 0.10       # Target SoC at end (10%)
-    min_soc: float = 0.05          # Minimum allowed SoC (5%)
+    min_soc: float = 0.10          # Minimum allowed SoC (10%)
     aggressiveness: float = 1.2   # Speed adjustment aggressiveness
     initial_speed_mps: float = 20.0  # Initial speed in m/s (~45 mph)
     max_speed_mps: float = 35.0    # Max speed m/s (~78 mph)
@@ -290,34 +290,72 @@ class WeatherService:
 # =============================================================================
 
 class SpeedController:
-    """Manages speed adjustments based on SoC tracking."""
+    """
+    Manages speed using an energy-budget optimal speed + gentle PI corrections.
+    
+    Strategy:
+      1. Pre-compute the optimal *constant* speed that exactly uses the
+         available energy budget (battery + total solar input) over the race.
+         Constant speed is provably optimal because drag power ~ v³, so by
+         Jensen's inequality any fluctuation wastes energy.
+      2. During the race, apply a small PI (proportional-integral) correction
+         to handle forecast errors, keeping speed nearly constant while
+         tracking the ideal SoC curve.
+    """
     
     def __init__(self, race_config: RaceConfig):
         self.config = race_config
+        self._integral_error: float = 0.0  # accumulated SoC error for I-term
+        self._optimal_speed: Optional[float] = None
     
-    def compute_ideal_soc_curve(self, cloud_data: np.ndarray, alpha: float = 0.5) -> np.ndarray:
+    def compute_optimal_speed(
+        self, physics: 'PhysicsEngine', ghi_data: np.ndarray, dt_hours: float
+    ) -> float:
+        """
+        Compute the constant speed that exactly depletes the energy budget.
+        
+        Energy budget:
+            E_available = battery_usable + sum(solar_power_i * dt)
+        
+        Energy cost at constant speed v for N steps:
+            E_cost = N * power_drained(v) * dt
+        
+        Solve for v such that E_cost = E_available using bisection.
+        """
+        cap = physics.car.battery_capacity
+        usable_energy = (self.config.start_soc - self.config.target_soc) * cap  # Wh
+        total_solar = np.sum(physics.solar_power(ghi_data)) * dt_hours  # Wh
+        total_available = usable_energy + total_solar  # Wh
+        n_steps = len(ghi_data)
+        
+        # Bisection: find v where total drain == total_available
+        v_lo, v_hi = self.config.min_speed_mps, self.config.max_speed_mps
+        for _ in range(60):  # converges in ~60 iterations to <0.001 m/s
+            v_mid = (v_lo + v_hi) / 2.0
+            cost = n_steps * physics.power_drained(v_mid) * dt_hours
+            if cost < total_available:
+                v_lo = v_mid
+            else:
+                v_hi = v_mid
+        
+        self._optimal_speed = (v_lo + v_hi) / 2.0
+        return self._optimal_speed
+    
+    def compute_ideal_soc_curve(
+        self, cloud_data: np.ndarray, alpha: float = 0.5
+    ) -> np.ndarray:
         """
         Compute ideal SoC curve that adapts to cloud conditions.
         
         - Sunny (low cloud): Can use more battery (faster SoC decline)
         - Cloudy (high cloud): Conserve battery (slower SoC decline)
-        
-        Args:
-            cloud_data: Array of cloud cover values (0-1)
-            alpha: Cloud impact strength (0=ignore, 1=fully reactive)
-        
-        Returns:
-            Array of ideal SoC values
         """
         n_steps = len(cloud_data)
         soc = np.zeros(n_steps)
         soc[0] = self.config.start_soc
         soc_drop_total = self.config.start_soc - self.config.target_soc
         
-        # Cloud-weighted factors: sunny = faster drop, cloudy = slower drop
         cloud_factors = (1 - cloud_data) * alpha + (1 - alpha)
-        
-        # Normalize to achieve target total drop
         total_weighted = np.sum(cloud_factors)
         normalized_drops = cloud_factors * (soc_drop_total / total_weighted)
         
@@ -327,47 +365,59 @@ class SpeedController:
         
         return soc
     
-    def adjust_speed(self, current_speed: float, soc_error: float, bdr: float) -> float:
+    def adjust_speed(
+        self, current_speed: float, soc_error: float, bdr: float,
+        current_soc: float = 1.0
+    ) -> float:
         """
-        Adjust speed based on SoC tracking error using a smooth continuous function.
-        
-        Uses a smooth curve that transitions continuously between speed adjustments,
-        eliminating discrete jumps and oscillations. The function is symmetric and
-        responsive to both positive and negative SoC errors.
+        Apply a gentle PI correction around the pre-computed optimal speed,
+        with an emergency slowdown layer that forces the car toward min_speed
+        when SoC approaches the minimum threshold.
         
         Args:
-            current_speed: Current velocity (m/s)
+            current_speed: Current velocity (m/s) — used as fallback only
             soc_error: Current SoC - Ideal SoC (positive = above target)
-            bdr: Battery drain rate
+            bdr: Battery drain rate (unused, kept for interface compatibility)
+            current_soc: Actual SoC right now (used for emergency guard)
         
         Returns:
             Adjusted speed (m/s)
         """
+        base_speed = self._optimal_speed if self._optimal_speed else current_speed
         agg = self.config.aggressiveness
         
-        # Smooth continuous adjustment using tanh sigmoid curve
-        # This provides smooth transitions without discrete jumps
-        # soc_error range: -0.2 to +0.2 covers most realistic scenarios
+        # PI gains (scaled by aggressiveness)
+        Kp = 0.08 * agg   # proportional gain
+        Ki = 0.002 * agg   # integral gain
         
-        # Main smooth adjustment based on SoC error
-        # Normalize error to a reasonable range and apply smooth sigmoid
-        normalized_error = soc_error / 0.15  # Scale for smooth behavior
-        smooth_factor = np.tanh(normalized_error * 1.5) * 0.18  # Maps to ~±0.18 adjustment
+        # Update integral with anti-windup clamp
+        self._integral_error += soc_error
+        self._integral_error = np.clip(self._integral_error, -5.0, 5.0)
         
-        # Fine-tuning when very close to target (-0.03 to +0.03 range)
-        # If BDR is high (draining fast), slow down slightly; otherwise maintain/speed up
-        if abs(soc_error) < 0.03:
-            if bdr > 0.05:
-                smooth_factor -= 0.01
-            else:
-                smooth_factor += 0.005
+        # Compute correction (positive error → speed up to use excess SoC)
+        correction = Kp * soc_error + Ki * self._integral_error
         
-        # Apply adjustment with aggressiveness scaling
-        speed_multiplier = 1.0 + (smooth_factor * agg)
-        speed = current_speed * speed_multiplier
+        # Limit total correction to ±5 % of base speed for stability
+        correction = np.clip(correction, -0.15, 0.15)
         
-        # Clamp to allowed speed range
+        speed = base_speed * (1.0 + correction)
+        
+        # --- Emergency SoC guard ---
+        # When SoC is within a 5% margin above min_soc, progressively
+        # blend speed toward min_speed to prevent breaching the floor.
+        margin = 0.05  # start slowing 5% above min_soc
+        soc_above_min = current_soc - self.config.min_soc
+        if soc_above_min < margin:
+            # urgency goes from 0 (at min_soc + margin) to 1 (at min_soc)
+            urgency = 1.0 - max(soc_above_min, 0.0) / margin
+            speed = speed * (1 - urgency) + self.config.min_speed_mps * urgency
+        
         return np.clip(speed, self.config.min_speed_mps, self.config.max_speed_mps)
+    
+    def reset(self):
+        """Reset controller state (call before a new simulation run)."""
+        self._integral_error = 0.0
+        self._optimal_speed = None
 
 
 # =============================================================================
@@ -410,16 +460,20 @@ class LapsRaceSimulator:
         else:
             time_minutes, ghi_data, cloud_data = self.weather.generate_synthetic_data(self.race)
         
-        # Compute ideal SoC curve
+        # Compute ideal SoC curve and optimal constant speed
         ideal_soc = self.controller.compute_ideal_soc_curve(cloud_data)
+        dt_hours = self.race.time_step_minutes / 60
+        optimal_v = self.controller.compute_optimal_speed(
+            self.physics, ghi_data, dt_hours
+        )
+        print(f"   Optimal constant speed: {optimal_v:.2f} m/s ({optimal_v*2.237:.1f} mph)")
         
         # Initialize simulation state
         n_steps = len(time_minutes)
         dt_minutes = self.race.time_step_minutes
-        dt_hours = dt_minutes / 60
         
         soc = self.race.start_soc
-        speed = self.race.initial_speed_mps
+        speed = optimal_v  # Start at the pre-computed optimal speed
         total_distance = 0.0
         current_lap_distance = 0.0
         total_laps = 0
@@ -464,7 +518,7 @@ class LapsRaceSimulator:
             # Adjust speed based on SoC tracking
             soc_error = soc - ideal_soc[i]
             prev_speed = speed
-            speed = self.controller.adjust_speed(speed, soc_error, bdr)
+            speed = self.controller.adjust_speed(speed, soc_error, bdr, current_soc=soc)
             
             # Apply regenerative braking energy if decelerating
             regen_wh = self.physics.regen_energy(prev_speed, speed)
@@ -759,8 +813,8 @@ def main():
     race = RaceConfig(
         start_soc=1.0,
         target_soc=0.10,
-        aggressiveness=10.0,
-        initial_speed_mps=20.0,  # ~45 mph
+        aggressiveness=1.5,     # moderate PI correction
+        initial_speed_mps=20.0,  # fallback only; optimal speed is computed
         time_step_minutes=1.0
     )
     
