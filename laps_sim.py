@@ -241,17 +241,25 @@ class WeatherService:
         df = pd.DataFrame(data=hourly_data)
         df = df.set_index("date").tz_convert(self.track.timezone)
         
-        # Filter to race hours
-        start_time = f"{int(race_config.start_time_hour):02d}:00"
-        end_time = f"{int(race_config.end_time_hour):02d}:00"
-        df = df.between_time(start_time, end_time)
-        df = df[1:10]  # First day only (skip first incomplete hour)
-        df = df.reset_index()
-        
-        # Resample to 1-minute intervals
-        df = df.resample("min", on="date").mean()
-        df["ghi"] = df["ghi"].interpolate(method="spline", order=3)
-        df["cloud_cover"] = df["cloud_cover"].interpolate(method="linear")
+        # Constrain to one local race day and an exact [start, end) race window.
+        # This prevents multi-day interpolation that can create >8 hour simulations.
+        race_date = df.index[0].date()
+        start_dt = pd.Timestamp(race_date, tz=self.track.timezone) + pd.Timedelta(
+            hours=race_config.start_time_hour
+        )
+        end_dt = pd.Timestamp(race_date, tz=self.track.timezone) + pd.Timedelta(
+            hours=race_config.end_time_hour
+        )
+
+        race_window = df.loc[(df.index >= start_dt) & (df.index < end_dt)].copy()
+        if race_window.empty:
+            raise ValueError("No weather data found in race time window")
+
+        # Build an exact minute grid for 10:00-18:00 (8 hours -> 480 points).
+        minute_index = pd.date_range(start=start_dt, end=end_dt, freq="min", inclusive="left")
+        df = race_window.reindex(minute_index)
+        df["ghi"] = df["ghi"].interpolate(method="linear", limit_direction="both")
+        df["cloud_cover"] = df["cloud_cover"].interpolate(method="linear", limit_direction="both")
         
         # Convert to arrays
         n_points = len(df)
@@ -265,7 +273,7 @@ class WeatherService:
         """Generate synthetic weather data for testing."""
         start_min = int(race_config.start_time_hour * 60)
         end_min = int(race_config.end_time_hour * 60)
-        time_minutes = np.arange(start_min, end_min + 1)
+        time_minutes = np.arange(start_min, end_min)
         
         # Parabolic GHI curve peaking at solar noon
         t_peak = 13 * 60  # 1:00 PM
@@ -500,7 +508,7 @@ class LapsRaceSimulator:
             # Update SoC
             energy_delta = (power_in - power_out) * dt_hours  # Wh
             soc += energy_delta / self.car.battery_capacity
-            soc = max(soc, self.race.min_soc)
+            soc = np.clip(soc, self.race.min_soc, 1.0)
             
             # Calculate distance for this time step
             distance_step = speed * (dt_minutes * 60)  # meters
