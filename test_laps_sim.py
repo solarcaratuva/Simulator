@@ -17,7 +17,7 @@ Usage:
     results = tester.run_with_current_weather()
     tester.generate_report(results)
 """
-
+import os
 from datetime import datetime, timedelta
 from dataclasses import dataclass, asdict
 from typing import Optional, List, Dict, Tuple
@@ -245,7 +245,7 @@ class SimulationTester:
         
         # Manually run simulation with custom weather
         # (We'll call the weather service method to generate synthetic, then override)
-        result = simulator.run()
+        result: SimulationResults = simulator.run()
         
         return result
     
@@ -840,11 +840,11 @@ if __name__ == "__main__":
                 plotter = SimulationPlotter(results, track)
                 location_name = location_config['location'].replace(' ', '_').replace(',', '')
                 plots_dir = "plots/laps/test_laps_dashboards"
+                os.makedirs(plots_dir, exist_ok=True)
                 plotter.plot_dashboard(save_path=f"{plots_dir}/{location_name}_dashboard.png")
                 plotter.plot_soc(save_path=f"{plots_dir}/{location_name}_soc.png")
                 plotter.plot_speed(save_path=f"{plots_dir}/{location_name}_speed.png")
                 plotter.plot_weather(save_path=f"{plots_dir}/{location_name}_weather.png")
-                
                 print(f"   📊 Plots saved to {plots_dir}/")
             else:
                 print(f" ✗ (No results)")
