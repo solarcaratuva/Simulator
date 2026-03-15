@@ -4,7 +4,9 @@ This is a modularized version of the laps simulator in a separate directory for 
 
 ## Supported location
 
-- `shenandoah` (Shenandoah Speedway, VA)
+- (1) Shenandoah Speedway
+- (2) Virginia International Raceway (Patriot Course)
+- (3) Brainerd International Raceway (Donnybrooke Course)
 
 ## Strategies
 
@@ -14,13 +16,7 @@ This is a modularized version of the laps simulator in a separate directory for 
 
 ## Usage
 
-```bash
-python3 modular_laps_sim/main.py --location shenandoah --strategy pi
-python3 modular_laps_sim/main.py --location shenandoah --strategy stepped --aggressiveness 1.3
-python3 modular_laps_sim/main.py --location shenandoah --strategy interval-hold --aggressiveness 0.9
-```
-
-Use `--synthetic-weather` to run without API weather.
+Choose from the given locations (1, 2, 3). 
 
 ## Output plots
 
