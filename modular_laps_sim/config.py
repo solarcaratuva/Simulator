@@ -107,7 +107,7 @@ class SimulationResults:
 def get_available_tracks() -> Dict[str, TrackConfig]:
     return {
         "shenandoah": TrackConfig(
-            name="Shenandpah Speedway",
+            name="Shenandoah Speedway",
             location="Page County, Virginia",
             latitude=38.5110,
             longitude=-78.6359,

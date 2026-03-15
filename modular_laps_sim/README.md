@@ -15,9 +15,9 @@ This is a modularized version of the laps simulator in a separate directory for 
 ## Usage
 
 ```bash
-python modular_laps_sim/main.py --location shenandoah --strategy pi
-python modular_laps_sim/main.py --location shenandoah --strategy stepped --aggressiveness 1.3
-python modular_laps_sim/main.py --location shenandoah --strategy interval-hold --aggressiveness 0.9
+python3 modular_laps_sim/main.py --location shenandoah --strategy pi
+python3 modular_laps_sim/main.py --location shenandoah --strategy stepped --aggressiveness 1.3
+python3 modular_laps_sim/main.py --location shenandoah --strategy interval-hold --aggressiveness 0.9
 ```
 
 Use `--synthetic-weather` to run without API weather.
