@@ -4,7 +4,7 @@ This is a modularized version of the laps simulator in a separate directory for 
 
 ## Supported location
 
-- `shenandoah` (Shenandoah Circuit, Summit Point, WV)
+- `shenandoah` (Shenandoah Speedway, VA)
 
 ## Strategies
 
