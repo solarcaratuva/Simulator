@@ -1,6 +1,8 @@
 import math
 import numpy as np
 
+# TODO this entire file is unused
+
 # define constants:
 g = 9.80665 # m/s^2, acceleration due to gravity
 regen_efficiency = float('inf') # efficiency coefficient of the regenerative braking system
