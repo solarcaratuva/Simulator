@@ -13,6 +13,7 @@ Track Info:
 
 from dataclasses import dataclass, field
 from typing import Tuple, List, Optional
+from datetime import timedelta
 import json
 import math
 import numpy as np
@@ -213,10 +214,14 @@ class WeatherService:
             Tuple of (time_minutes, ghi_data, cloud_data)
         """
         url = "https://api.open-meteo.com/v1/forecast"
+        local_today = pd.Timestamp.now(tz=self.track.timezone).date()
         params = {
             "latitude": self.track.latitude,
             "longitude": self.track.longitude,
             "hourly": ["shortwave_radiation_instant", "cloud_cover"],
+            "timezone": self.track.timezone,
+            "start_date": str(local_today),
+            "end_date": str(local_today + timedelta(days=15)),
         }
         
         responses = self.client.weather_api(url, params=params)
@@ -240,20 +245,31 @@ class WeatherService:
         
         df = pd.DataFrame(data=hourly_data)
         df = df.set_index("date").tz_convert(self.track.timezone)
-        
-        # Constrain to one local race day and an exact [start, end) race window.
-        # This prevents multi-day interpolation that can create >8 hour simulations.
-        race_date = df.index[0].date()
-        start_dt = pd.Timestamp(race_date, tz=self.track.timezone) + pd.Timedelta(
-            hours=race_config.start_time_hour
-        )
-        end_dt = pd.Timestamp(race_date, tz=self.track.timezone) + pd.Timedelta(
-            hours=race_config.end_time_hour
-        )
 
-        race_window = df.loc[(df.index >= start_dt) & (df.index < end_dt)].copy()
-        if race_window.empty:
-            raise ValueError("No weather data found in race time window")
+        # Pick the first forecast date with full [start, end) local coverage.
+        interval = pd.Timedelta(seconds=hourly.Interval())
+        selected = None
+        for race_date in pd.Index(df.index.date).unique():
+            start_dt = pd.Timestamp(race_date, tz=self.track.timezone) + pd.Timedelta(
+                hours=race_config.start_time_hour
+            )
+            end_dt = pd.Timestamp(race_date, tz=self.track.timezone) + pd.Timedelta(
+                hours=race_config.end_time_hour
+            )
+            race_window = df.loc[(df.index >= start_dt) & (df.index < end_dt)].copy()
+            has_full_coverage = (
+                not race_window.empty
+                and race_window.index.min() <= start_dt
+                and race_window.index.max() >= (end_dt - interval)
+            )
+            if has_full_coverage:
+                selected = (start_dt, end_dt, race_window)
+                break
+
+        if selected is None:
+            raise ValueError("No weather data found for a complete race time window")
+
+        start_dt, end_dt, race_window = selected
 
         # Build an exact minute grid for 10:00-18:00 (8 hours -> 480 points).
         minute_index = pd.date_range(start=start_dt, end=end_dt, freq="min", inclusive="left")
