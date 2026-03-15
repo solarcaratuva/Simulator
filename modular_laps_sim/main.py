@@ -46,7 +46,6 @@ def parse_args():
 def main():
     args = parse_args()
     tracks = get_available_tracks()
-    track = tracks[args.location]
 
     repo_root = Path(__file__).resolve().parents[1]
     car_json = repo_root / "car_params.json"
@@ -63,6 +62,24 @@ def main():
         if args.aggressiveness is not None
         else DEFAULT_AGGRESSIVENESS[args.strategy]
     )
+
+    print("Choose a track to test on:")
+    for i in range(len(tracks)):
+        print(f"({i+1}) {tracks[i].name}")
+    num = 0
+    while True:
+        inp = input()
+        if inp.isdigit():
+            num = int(inp)
+            if num <= 0 or num > len(tracks):
+                print("Invalid int")
+            else:
+                break
+        elif inp == "":
+            break
+
+    track = tracks[num-1]
+
 
     race = RaceConfig(
         start_soc=1.0,

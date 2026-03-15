@@ -104,14 +104,14 @@ class SimulationResults:
         return float(self.soc[-1])
 
 
-def get_available_tracks() -> Dict[str, TrackConfig]:
-    return {
-        "shenandoah": TrackConfig(
-            name="Shenandpah Speedway",
+def get_available_tracks() -> List[TrackConfig]:
+    return [
+        TrackConfig(
+            name="Shenandoah Speedway",
             location="Page County, Virginia",
             latitude=38.5110,
             longitude=-78.6359,
             lap_distance_km=0.604,
             timezone="America/New_York",
         )
-    }
+    ]
