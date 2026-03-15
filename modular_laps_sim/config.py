@@ -113,5 +113,13 @@ def get_available_tracks() -> List[TrackConfig]:
             longitude=-78.6359,
             lap_distance_km=0.604,
             timezone="America/New_York",
-        )
+        ),
+        TrackConfig(
+            name= "Virginia International Raceway (Patriot Course)",
+            location="Alton, Virginia",
+            latitude=36.5666,
+            longitude=-79.2058,
+            lap_distance_km=1.77,
+            timezone="America/New_York"
+        ),
     ]
