@@ -11,12 +11,14 @@ the target SoC at the end of the race.
 Usage:
     python interactive_laps_sim.py
 """
-
-from laps_sim import (
-    TrackConfig, CarConfig, RaceConfig,
-    PhysicsEngine, WeatherService, SpeedController,
-)
 import numpy as np
+
+from modular_laps_sim.config import (
+    CarConfig, RaceConfig, get_available_tracks,
+)
+from modular_laps_sim.controllers import PIControllerStrategy
+from modular_laps_sim.physics import PhysicsEngine
+from modular_laps_sim.weather import WeatherService
 
 
 class InteractiveSimulator:
@@ -28,7 +30,7 @@ class InteractiveSimulator:
         self.race = race
         self.physics = PhysicsEngine(car)
         self.weather_service = WeatherService(track)
-        self.controller = SpeedController(race)
+        self.controller = PIControllerStrategy(race)
 
         # Fetch weather for the entire race window
         print("Fetching weather data...")
@@ -147,7 +149,7 @@ class InteractiveSimulator:
 
             soc_error = soc - ideal_soc[i]
             prev_speed = speed
-            speed = self.controller.adjust_speed(speed, soc_error, bdr)
+            speed = self.controller.next_speed(-1, speed, soc, soc_error, bdr, -1, rem_ghi, dt_hours)
 
             # Apply regenerative braking energy if decelerating
             regen_wh = self.physics.regen_energy(prev_speed, speed)
@@ -360,7 +362,25 @@ def main():
         car = CarConfig()
         print("  Using default car parameters")
 
-    track = TrackConfig()
+    tracks = get_available_tracks()
+
+    print("Choose a track to test on:")
+    for i in range(len(tracks)):
+        print(f"({i + 1}) {tracks[i].name}")
+    num = 0
+    while True:
+        inp = input()
+        if inp.isdigit():
+            num = int(inp)
+            if num <= 0 or num > len(tracks):
+                print("Invalid int")
+            else:
+                break
+        elif inp == "":
+            break
+
+    track = tracks[num - 1]
+
     print(f"  Track: {track.name}")
     print(f"  Lap:   {track.lap_distance_km:.3f} km"
           f" ({track.lap_distance_km / 1.609:.2f} mi)")
