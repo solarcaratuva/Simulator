@@ -122,4 +122,12 @@ def get_available_tracks() -> List[TrackConfig]:
             lap_distance_km=1.77,
             timezone="America/New_York"
         ),
+        TrackConfig(
+            name= "Brainerd International Raceway (Donnybrooke Course)",
+            location="Brainerd, Minnesota",
+            latitude=46.4176,
+            longitude=-94.2853,
+            lap_distance_km=4.989,
+            timezone="America/Chicago"
+        )
     ]

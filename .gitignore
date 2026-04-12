@@ -210,6 +210,7 @@ __marimo__/
 plots/cross_country/*
 !plots/cross_country/.gitkeep
 plots/laps/*
+plots/laps_modular/*
 !plots/laps/.gitkeep
 plots/predictive/*
 !plots/predictive/.gitkeep
