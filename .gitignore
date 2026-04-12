@@ -213,6 +213,8 @@ plots/laps/*
 !plots/laps/.gitkeep
 plots/predictive/*
 !plots/predictive/.gitkeep
+modular_laps_sim/plots/laps_modular/*
+!modular_laps_sim/plots/laps_modular/.gitkeep
 
 .idea
 venv
