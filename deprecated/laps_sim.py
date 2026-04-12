@@ -826,7 +826,7 @@ def main():
     
     # Load car parameters from JSON or use defaults
     try:
-        car = CarConfig.from_json("car_params.json")
+        car = CarConfig.from_json("../car_params.json")
         print("✓ Loaded car parameters from car_params.json")
     except FileNotFoundError:
         car = CarConfig()
@@ -862,12 +862,12 @@ def main():
     
     # Generate plots
     plotter = SimulationPlotter(results, track)
-    race_dash_path = "lap_sim_plots/laps/laps_race_dashboard.png"
-    soc_plot_path = "lap_sim_plots/laps/laps_soc_plot.png"
-    speed_plot_path = "lap_sim_plots/laps/laps_speed_plot.png"
-    weather_plot_path = "lap_sim_plots/laps/laps_weather_plot.png"
+    race_dash_path = "../lap_sim_plots/laps/laps_race_dashboard.png"
+    soc_plot_path = "../lap_sim_plots/laps/laps_soc_plot.png"
+    speed_plot_path = "../lap_sim_plots/laps/laps_speed_plot.png"
+    weather_plot_path = "../lap_sim_plots/laps/laps_weather_plot.png"
 
-    os.makedirs("lap_sim_plots/laps", exist_ok=True)
+    os.makedirs("../lap_sim_plots/laps", exist_ok=True)
 
     plotter.plot_dashboard(save_path=race_dash_path)
     plotter.plot_soc(save_path=soc_plot_path)

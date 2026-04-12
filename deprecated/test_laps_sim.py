@@ -18,13 +18,11 @@ Usage:
     tester.generate_report(results)
 """
 import os
-from datetime import datetime, timedelta
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 from typing import Optional, List, Dict, Tuple
 import numpy as np
-import json
 
-from laps_sim import (
+from deprecated.laps_sim import (
     TrackConfig, CarConfig, RaceConfig,
     LapsRaceSimulator, SimulationResults,
     SimulationPlotter, ResultsReporter
