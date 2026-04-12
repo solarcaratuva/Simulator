@@ -207,13 +207,13 @@ marimo/_lsp/
 __marimo__/
 
 # Simulation Plots - ignore everything except .gitkeep
-plots/cross_country/*
-!plots/cross_country/.gitkeep
-plots/laps/*
-plots/laps_modular/*
-!plots/laps/.gitkeep
-plots/predictive/*
-!plots/predictive/.gitkeep
+deprecated/plots/cross_country/*
+!deprecated/plots/cross_country/.gitkeep
+deprecated/plots/laps/*
+deprecated/plots/laps_modular/*
+!deprecated/plots/laps/.gitkeep
+deprecated/plots/predictive/*
+!deprecated/plots/predictive/.gitkeep
 modular_laps_sim/plots/laps_modular/*
 !modular_laps_sim/plots/laps_modular/.gitkeep
 

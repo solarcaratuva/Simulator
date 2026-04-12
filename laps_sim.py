@@ -862,10 +862,10 @@ def main():
     
     # Generate plots
     plotter = SimulationPlotter(results, track)
-    plotter.plot_dashboard(save_path="plots/laps/laps_race_dashboard.png")
-    plotter.plot_soc(save_path="plots/laps/laps_soc_plot.png")
-    plotter.plot_speed(save_path="plots/laps/laps_speed_plot.png")
-    plotter.plot_weather(save_path="plots/laps/laps_weather_plot.png")
+    plotter.plot_dashboard(save_path="deprecated/plots/laps/laps_race_dashboard.png")
+    plotter.plot_soc(save_path="deprecated/plots/laps/laps_soc_plot.png")
+    plotter.plot_speed(save_path="deprecated/plots/laps/laps_speed_plot.png")
+    plotter.plot_weather(save_path="deprecated/plots/laps/laps_weather_plot.png")
     
     print("📊 Plots saved:")
     print("   - plots/laps/laps_race_dashboard.png")
