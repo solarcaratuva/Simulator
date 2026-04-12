@@ -10,7 +10,7 @@ Track Info:
 - Location: Alton, Virginia (36.5666°N, 79.2058°W)
 - Patriot Course Length: 1.10 miles (1.77 km)
 """
-
+import os
 from dataclasses import dataclass, field
 from typing import Tuple, List, Optional
 from datetime import timedelta
@@ -862,16 +862,23 @@ def main():
     
     # Generate plots
     plotter = SimulationPlotter(results, track)
-    plotter.plot_dashboard(save_path="deprecated/plots/laps/laps_race_dashboard.png")
-    plotter.plot_soc(save_path="deprecated/plots/laps/laps_soc_plot.png")
-    plotter.plot_speed(save_path="deprecated/plots/laps/laps_speed_plot.png")
-    plotter.plot_weather(save_path="deprecated/plots/laps/laps_weather_plot.png")
+    race_dash_path = "lap_sim_plots/laps/laps_race_dashboard.png"
+    soc_plot_path = "lap_sim_plots/laps/laps_soc_plot.png"
+    speed_plot_path = "lap_sim_plots/laps/laps_speed_plot.png"
+    weather_plot_path = "lap_sim_plots/laps/laps_weather_plot.png"
+
+    os.makedirs("lap_sim_plots/laps", exist_ok=True)
+
+    plotter.plot_dashboard(save_path=race_dash_path)
+    plotter.plot_soc(save_path=soc_plot_path)
+    plotter.plot_speed(save_path=speed_plot_path)
+    plotter.plot_weather(save_path=weather_plot_path)
     
     print("📊 Plots saved:")
-    print("   - plots/laps/laps_race_dashboard.png")
-    print("   - plots/laps/laps_soc_plot.png")
-    print("   - plots/laps/laps_speed_plot.png")
-    print("   - plots/laps/laps_weather_plot.png")
+    print(f"   - {race_dash_path}")
+    print(f"   - {soc_plot_path}")
+    print(f"   - {speed_plot_path}")
+    print(f"   - {weather_plot_path}")
 
     
     return results

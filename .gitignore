@@ -216,6 +216,7 @@ deprecated/plots/predictive/*
 !deprecated/plots/predictive/.gitkeep
 modular_laps_sim/plots/laps_modular/*
 !modular_laps_sim/plots/laps_modular/.gitkeep
+lap_sim_plots/*
 
 .idea
 venv
