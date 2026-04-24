@@ -2,6 +2,8 @@ import argparse
 import os
 from pathlib import Path
 
+from scipy.stats import energy_distance
+
 from config import CarConfig, RaceConfig, get_available_tracks
 from simulator import LapsRaceSimulator
 from reporting import ResultsReporter
@@ -80,11 +82,27 @@ def main():
 
     track = tracks[num-1]
 
+    print("Enter a safety scale (0.01-1, default 1):")
+    print("This tells the simulator to use a percentage of the calculated energy budget")
+    energy_safety_scale = 1.0
+    while True:
+        inp = input()
+        if inp == "": break
+        try:
+            energy_safety_scale = float(inp)
+            if 0.01 <= energy_safety_scale <= 1:
+                break
+            else:
+                print("Must be between 0.01 and 1")
+        except ValueError:
+            print("Invalid float")
+
 
     race = RaceConfig(
         start_soc=1.0,
         target_soc=0.10,
         aggressiveness=aggressiveness,
+        energy_safety_scale=energy_safety_scale,
         initial_speed_mps=20.0,
         time_step_minutes=1.0,
         strategy=args.strategy,
