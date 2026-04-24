@@ -177,6 +177,18 @@ class IntervalHoldStrategy(BaseStrategy):
         return self.held_speed
 
 
+class FixedSpeedStrategy(BaseStrategy):
+    name = "fixed"
+
+    def prepare(self, physics, ghi_data: np.ndarray, cloud_data: np.ndarray, dt_hours: float):
+        # Keep ideal SOC for reporting parity, but force fixed commanded speed.
+        super().prepare(physics, ghi_data, cloud_data, dt_hours)
+        self.optimal_speed = self.clamp(self.config.fixed_speed_mps)
+
+    def next_speed(self, step: int, current_speed: float, current_soc: float, soc_error: float, bdr: float, physics, ghi_data: np.ndarray, dt_hours: float) -> float:
+        return self.clamp(self.config.fixed_speed_mps)
+
+
 def build_strategy(name: str, race_config):
     # Factory: map strategy name from config/CLI to implementation.
     normalized = name.strip().lower()
@@ -186,4 +198,6 @@ def build_strategy(name: str, race_config):
         return SteppedIfElseStrategy(race_config)
     if normalized in {"interval-hold", "interval", "linear"}:
         return IntervalHoldStrategy(race_config)
+    if normalized == "fixed":
+        return FixedSpeedStrategy(race_config)
     raise ValueError(f"Unknown strategy: {name}")
