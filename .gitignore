@@ -219,6 +219,7 @@ modular_laps_sim/plots/laps_modular/*
 plots/laps_modular/*
 !plots/laps_modular/.gitkeep
 lap_sim_plots/*
+plots/*
 
 .idea
 venv

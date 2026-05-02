@@ -63,11 +63,20 @@ class RaceConfig:
     target_soc: float = 0.10
     min_soc: float = 0.10
     aggressiveness: float = 1.2
-    fixed_speed_mps: float = 20.0
+    energy_safety_scale: float = 1.0
+    initial_speed_mps: float = 20.0
+    fixed_speed_mps: float = 15.0
     max_speed_mps: float = 35.0
     min_speed_mps: float = 4.0
     time_step_minutes: float = 1.0
     strategy: str = "pi"
+
+    # constraints
+    def __post_init__(self):
+        if self.energy_safety_scale >= 1:
+            self.energy_safety_scale = 1.0
+        elif self.energy_safety_scale <= 0:
+            self.energy_safety_scale = 0.01
 
 
 @dataclass

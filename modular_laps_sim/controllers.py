@@ -1,6 +1,9 @@
 from abc import ABC, abstractmethod
 import numpy as np
 
+from modular_laps_sim.config import RaceConfig
+
+
 # Build target SOC trajectory from start_soc to target_soc.
 # More drop is allocated in clearer periods, less in cloudier periods.
 def compute_ideal_soc_curve(cloud_data: np.ndarray, race_config, alpha: float = 0.5) -> np.ndarray:
@@ -24,11 +27,12 @@ def compute_ideal_soc_curve(cloud_data: np.ndarray, race_config, alpha: float = 
 
 # Find a constant speed that consumes the total available race energy budget.
 # Used as baseline speed for SOC feedback strategies to adjust around.
-def solve_optimal_constant_speed(physics, race_config, ghi_data: np.ndarray, dt_hours: float) -> float:
+def solve_optimal_constant_speed(physics, race_config: RaceConfig, ghi_data: np.ndarray, dt_hours: float) -> float:
     cap = physics.car.battery_capacity
     usable_energy = (race_config.start_soc - race_config.target_soc) * cap
     total_solar = np.sum(physics.solar_power(ghi_data)) * dt_hours
     total_available = usable_energy + total_solar
+    total_available *= race_config.energy_safety_scale
     n_steps = len(ghi_data)
 
     # Binary search for highest feasible constant speed in configured bounds.
@@ -46,7 +50,7 @@ def solve_optimal_constant_speed(physics, race_config, ghi_data: np.ndarray, dt_
 class BaseStrategy(ABC):
     # Shared strategy interface and common helpers.
     def __init__(self, race_config):
-        self.config = race_config
+        self.config: RaceConfig = race_config
         self.optimal_speed = None
 
     # Precompute baseline references before simulation starts.
@@ -135,7 +139,8 @@ class IntervalHoldStrategy(BaseStrategy):
         cap = physics.car.battery_capacity
         usable_energy = max(0.0, (current_soc - self.config.target_soc) * cap)
         solar_energy = np.sum(physics.solar_power(ghi_remaining)) * dt_hours
-        available = usable_energy + solar_energy
+        total_available = usable_energy + solar_energy
+        total_available *= self.config.energy_safety_scale
 
         n_steps = len(ghi_remaining)
         if n_steps == 0:
@@ -146,7 +151,7 @@ class IntervalHoldStrategy(BaseStrategy):
         for _ in range(60):
             v_mid = (v_lo + v_hi) / 2.0
             cost = n_steps * physics.power_drained(v_mid) * dt_hours
-            if cost < available:
+            if cost < total_available:
                 v_lo = v_mid
             else:
                 v_hi = v_mid
