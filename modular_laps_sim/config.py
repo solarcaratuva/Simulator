@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from typing import Dict, List
+from typing import Dict, List, Optional
 import json
 import math
 import numpy as np
@@ -65,8 +65,9 @@ class RaceConfig:
     aggressiveness: float = 1.2
     energy_safety_scale: float = 1.0
     initial_speed_mps: float = 20.0
+    fixed_speed_mps: float = 15.0
     max_speed_mps: float = 35.0
-    min_speed_mps: float = 8.0
+    min_speed_mps: float = 4.0
     time_step_minutes: float = 1.0
     strategy: str = "pi"
 
@@ -90,6 +91,9 @@ class SimulationResults:
     total_distance_m: float
     bdr: np.ndarray
     ideal_soc: np.ndarray
+    completed_full_window: bool
+    reached_min_soc_time_minutes: Optional[float]
+    laps_at_min_soc: Optional[int]
 
     @property
     def total_distance_km(self) -> float:

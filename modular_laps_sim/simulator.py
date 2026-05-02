@@ -39,12 +39,17 @@ class LapsRaceSimulator:
         total_distance = 0.0
         current_lap_distance = 0.0
         total_laps = 0
+        completed_full_window = True
+        reached_min_soc_time_minutes = None
+        laps_at_min_soc = None
 
-        soc_arr = np.zeros(n_steps)
-        speed_arr = np.zeros(n_steps)
-        bdr_arr = np.zeros(n_steps)
-        ghi_arr = np.zeros(n_steps)
-        cloud_arr = np.zeros(n_steps)
+        time_arr = []
+        soc_arr = []
+        speed_arr = []
+        bdr_arr = []
+        ghi_arr = []
+        cloud_arr = []
+        ideal_soc_arr = []
         lap_times = []
         lap_start_time = time_minutes[0]
 
@@ -56,45 +61,67 @@ class LapsRaceSimulator:
             power_out = self.physics.power_drained(speed)
             bdr = self.physics.battery_drain_rate(speed, ghi)
 
+            prev_soc = soc
             energy_delta = (power_in - power_out) * dt_hours
-            soc += energy_delta / self.car.battery_capacity
-            soc = float(np.clip(soc, self.race.min_soc, 1.0))
+            next_soc = prev_soc + energy_delta / self.car.battery_capacity
 
-            distance_step = speed * (dt_minutes * 60)
+            step_fraction = 1.0
+            hit_min_soc = prev_soc > self.race.min_soc and next_soc <= self.race.min_soc
+            if hit_min_soc:
+                denom = prev_soc - next_soc
+                if denom > 0:
+                    step_fraction = float(np.clip((prev_soc - self.race.min_soc) / denom, 0.0, 1.0))
+                soc = self.race.min_soc
+                completed_full_window = False
+                reached_min_soc_time_minutes = time_minutes[i] + dt_minutes * step_fraction
+            else:
+                soc = float(np.clip(next_soc, self.race.min_soc, 1.0))
+
+            distance_step = speed * (dt_minutes * 60) * step_fraction
             total_distance += distance_step
             current_lap_distance += distance_step
 
-            if current_lap_distance >= self.track.lap_distance_m:
+            if current_lap_distance >= self.track.lap_distance_m and speed > 0:
                 total_laps += 1
-                lap_time = time_minutes[i] - lap_start_time
+                lap_time = (time_minutes[i] + dt_minutes * step_fraction) - lap_start_time
                 lap_times.append(lap_time)
                 current_lap_distance -= self.track.lap_distance_m
-                lap_start_time = time_minutes[i]
+                lap_start_time = time_minutes[i] + dt_minutes * step_fraction
 
             soc_error = soc - ideal_soc[i]
             prev_speed = speed
-            speed = self.strategy.next_speed(i, speed, soc, soc_error, bdr, self.physics, ghi_data, dt_hours)
+            if not hit_min_soc:
+                speed = self.strategy.next_speed(i, speed, soc, soc_error, bdr, self.physics, ghi_data, dt_hours)
 
-            regen_wh = self.physics.regen_energy(prev_speed, speed)
-            if regen_wh > 0:
-                soc += regen_wh / self.car.battery_capacity
-                soc = min(soc, 1.0)
+                regen_wh = self.physics.regen_energy(prev_speed, speed)
+                if regen_wh > 0:
+                    soc += regen_wh / self.car.battery_capacity
+                    soc = min(soc, 1.0)
 
-            soc_arr[i] = soc
-            speed_arr[i] = speed
-            bdr_arr[i] = bdr
-            ghi_arr[i] = ghi
-            cloud_arr[i] = cloud
+            time_arr.append(time_minutes[i] + dt_minutes * step_fraction)
+            soc_arr.append(soc)
+            speed_arr.append(prev_speed)
+            bdr_arr.append(bdr)
+            ghi_arr.append(ghi)
+            cloud_arr.append(cloud)
+            ideal_soc_arr.append(ideal_soc[i])
+
+            if hit_min_soc:
+                laps_at_min_soc = total_laps
+                break
 
         return SimulationResults(
-            time_minutes=time_minutes,
-            soc=soc_arr,
-            speed=speed_arr,
-            ghi=ghi_arr,
-            cloud_cover=cloud_arr,
+            time_minutes=np.array(time_arr),
+            soc=np.array(soc_arr),
+            speed=np.array(speed_arr),
+            ghi=np.array(ghi_arr),
+            cloud_cover=np.array(cloud_arr),
             lap_times=lap_times,
             total_laps=total_laps,
             total_distance_m=total_distance,
-            bdr=bdr_arr,
-            ideal_soc=ideal_soc,
+            bdr=np.array(bdr_arr),
+            ideal_soc=np.array(ideal_soc_arr),
+            completed_full_window=completed_full_window,
+            reached_min_soc_time_minutes=reached_min_soc_time_minutes,
+            laps_at_min_soc=laps_at_min_soc,
         )

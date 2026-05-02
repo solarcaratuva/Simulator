@@ -48,9 +48,12 @@ class InteractiveSimulator:
                 self.weather_service.generate_synthetic_data(race)
             print("  Using synthetic weather data")
 
+        dt_hours = self.race.time_step_minutes / 60
+        self.controller.prepare(self.physics, self.ghi_data, self.cloud_data, dt_hours)
+
         # Mutable race state
         self.current_soc = race.start_soc
-        self.current_speed = race.initial_speed_mps
+        self.current_speed = self.controller.optimal_speed
         self.current_step = 0
         self.total_laps = 0
         self.total_distance_m = 0.0
@@ -177,7 +180,7 @@ class InteractiveSimulator:
 
         # Estimate time steps for the next lap
         remaining_lap_m = self.track.lap_distance_m - self.current_lap_distance
-        speed_est = self.current_speed if self.current_speed > 0 else self.race.initial_speed_mps
+        speed_est = self.current_speed if self.current_speed > 0 else self.controller.optimal_speed
         est_lap_seconds = remaining_lap_m / speed_est
         est_steps = max(1, int(est_lap_seconds / (self.race.time_step_minutes * 60)))
         est_steps = min(est_steps, len(proj['speeds']))
@@ -407,7 +410,6 @@ def main():
         start_soc=start_soc / 100.0,
         target_soc=target_soc / 100.0,
         aggressiveness=aggressiveness,
-        initial_speed_mps=20.0,
         time_step_minutes=1.0,
     )
 

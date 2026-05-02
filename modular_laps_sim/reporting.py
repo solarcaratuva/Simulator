@@ -9,6 +9,17 @@ class ResultsReporter:
 
     def print_summary(self):
         r = self.results
+
+        def fmt_elapsed(minute_of_day: float) -> str:
+            elapsed_min = minute_of_day - (self.race.start_time_hour * 60.0)
+            elapsed_min = max(0.0, elapsed_min)
+            hours = int(elapsed_min // 60)
+            minutes = int(round(elapsed_min % 60))
+            if minutes == 60:
+                minutes = 0
+                hours += 1
+            return f"{hours}h {minutes:02d}m"
+
         print("\n" + "=" * 80)
         print(f"  LAPS RACE SIMULATION RESULTS - {self.track.name}")
         print("=" * 80)
@@ -20,6 +31,16 @@ class ResultsReporter:
         print("\nRace Results:")
         print(f"   Total Laps Completed: {r.total_laps}")
         print(f"   Total Distance: {r.total_distance_km:.2f} km ({r.total_distance_miles:.2f} miles)")
+        if r.completed_full_window:
+            print("   Completed full race window: Yes (8.0 hours)")
+        else:
+            cutoff = "Unknown"
+            if r.reached_min_soc_time_minutes is not None:
+                cutoff = fmt_elapsed(r.reached_min_soc_time_minutes)
+            laps_at_cutoff = r.laps_at_min_soc if r.laps_at_min_soc is not None else r.total_laps
+            print("   Completed full race window: No")
+            print(f"   Reached {self.race.min_soc*100:.0f}% SoC at: {cutoff} into race")
+            print(f"   Laps at {self.race.min_soc*100:.0f}% SoC: {laps_at_cutoff}")
 
         print("\nBattery:")
         print(f"   Starting SoC: {self.race.start_soc*100:.0f}%")
